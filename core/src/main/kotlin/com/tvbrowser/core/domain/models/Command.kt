@@ -40,6 +40,9 @@ sealed class TVCommand {
 
     @Serializable
     data class SetSubtitles(val url: String?) : TVCommand()
+
+    @Serializable
+    data class Search(val query: String) : TVCommand()
 }
 
 @Serializable

@@ -46,7 +46,7 @@ class TVConnectionRepository @Inject constructor() {
                 Timber.d("Connected to TV at $wsUrl")
 
                 // Collect responses
-                webSocketManager?.responses?.collect { response ->
+                webSocketManager?.commandResponse?.collect { response ->
                     _responses.value = response
                 }
             } else {

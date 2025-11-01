@@ -207,26 +207,7 @@ class EnhancedMobileViewModel(
         viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(isLoading = true)
-
-                // Search in local history first
-                val historyResults = historyRepository.searchHistory(query)
-
-                // Mock web search results - replace with actual API
-                val webResults = listOf(
-                    SearchResult(
-                        title = "Search: $query on Google",
-                        url = "https://google.com/search?q=$query"
-                    ),
-                    SearchResult(
-                        title = "Search: $query on YouTube",
-                        url = "https://youtube.com/results?search_query=$query"
-                    )
-                )
-
-                _uiState.value = _uiState.value.copy(
-                    searchResults = webResults,
-                    isLoading = false
-                )
+                tvConnectionRepository.sendCommand(TVCommand.Search(query))
             } catch (e: Exception) {
                 Timber.e(e, "Search failed")
                 _uiState.value = _uiState.value.copy(

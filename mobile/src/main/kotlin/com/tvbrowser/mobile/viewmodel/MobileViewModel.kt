@@ -3,14 +3,17 @@ package com.tvbrowser.mobile.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import com.tvbrowser.core.domain.models.SearchResult
 import com.tvbrowser.core.domain.models.TVCommand
+import com.tvbrowser.core.domain.models.TVResponse
 import com.tvbrowser.core.network.WebSocketManager
 import com.tvbrowser.core.util.getDeviceId
 import com.tvbrowser.core.util.isVideoFile
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import timber.log.Timber
 import java.util.UUID
@@ -92,6 +95,7 @@ class MobileViewModel(private val context: Context) : ViewModel() {
                             deviceName = android.os.Build.MODEL
                         )
                     )
+                    listenForSocketEvents()
                     _uiState.value = _uiState.value.copy(
                         isConnected = true,
                         isLoading = false,
@@ -143,21 +147,7 @@ class MobileViewModel(private val context: Context) : ViewModel() {
         viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(isLoading = true)
-                // Mock search results - replace with actual API
-                val results = listOf(
-                    SearchResult(
-                        title = "Google",
-                        url = "https://google.com"
-                    ),
-                    SearchResult(
-                        title = "YouTube",
-                        url = "https://youtube.com"
-                    )
-                )
-                _uiState.value = _uiState.value.copy(
-                    searchResults = results,
-                    isLoading = false
-                )
+                webSocketManager?.sendCommand(TVCommand.Search(query))
             } catch (e: Exception) {
                 Timber.e(e, "Search failed")
                 _uiState.value = _uiState.value.copy(
@@ -215,6 +205,28 @@ class MobileViewModel(private val context: Context) : ViewModel() {
 
     private fun getAuthToken(): String? {
         return sharedPreferences.getString("auth_token", null)
+    }
+
+    private fun listenForSocketEvents() {
+        webSocketManager?.commandResponse?.onEach { response ->
+            when (response) {
+                is TVResponse.SearchResults -> {
+                    _uiState.value = _uiState.value.copy(
+                        searchResults = response.results,
+                        isLoading = false
+                    )
+                }
+                is TVResponse.NowPlaying -> {
+                    // Handle NowPlaying event
+                }
+                is TVResponse.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = response.message,
+                        isLoading = false
+                    )
+                }
+            }
+        }?.launchIn(viewModelScope)
     }
 
     override fun onCleared() {

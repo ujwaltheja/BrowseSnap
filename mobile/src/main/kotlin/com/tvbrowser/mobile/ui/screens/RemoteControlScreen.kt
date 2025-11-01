@@ -2,22 +2,27 @@ package com.tvbrowser.mobile.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.tvbrowser.core.domain.models.TVCommand
 import com.tvbrowser.mobile.viewmodel.MobileViewModel
 import androidx.compose.foundation.clickable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 
 @Composable
 fun RemoteControlScreen(
@@ -26,6 +31,9 @@ fun RemoteControlScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val volumeLevel = remember { mutableStateOf(50f) }
+    val searchQuery = rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
 
     Column(
         modifier = Modifier
@@ -48,6 +56,46 @@ fun RemoteControlScreen(
                 color = MaterialTheme.colorScheme.error
             )
             return@Column
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Search Bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchQuery.value,
+                onValueChange = { searchQuery.value = it },
+                label = { Text("Search") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    imeAction = ImeAction.Search
+                ),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        if (searchQuery.value.text.isNotBlank()) {
+                            viewModel.sendCommand(TVCommand.Search(searchQuery.value.text))
+                        }
+                    }
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    if (searchQuery.value.text.isNotBlank()) {
+                        viewModel.sendCommand(TVCommand.Search(searchQuery.value.text))
+                    }
+                },
+                enabled = searchQuery.value.text.isNotBlank()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search"
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

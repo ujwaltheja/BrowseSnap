@@ -1,20 +1,47 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+# IDE files
+.idea/
+.vscode/
+.claude/
+.kotlin/
 .DS_Store
+*.iml
+
+# Local configuration
+local.properties
+/local.properties
+
+# Gradle
+.gradle
 /build
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+!gradle/wrapper/gradle-wrapper.jar
+!**/build/libs/*
 
-# Build logs
+# Build output
+*.apk
+*.ap_
+*.aab
+*.jar
+*.war
+*.ear
+
+# Logs and profiling data
 *.log
+*.hprof
+*.snapshot
+*.lock
 build_log.txt
 build_output.log
+
+# Keystore files
+*.jks
+*.keystore
+
+# Misc
+*~
+#*#
+.#*
+%*
+._*
