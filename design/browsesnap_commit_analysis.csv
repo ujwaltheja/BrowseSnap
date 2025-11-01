@@ -1,0 +1,18 @@
+Category,Component,Status,Files,Priority,Estimated Hours,Notes
+Data & Infrastructure,Room Database Setup,✅ COMPLETE,1,HIGH,Done,Database configuration and entity management
+Data & Infrastructure,History Entity & DAO,✅ COMPLETE,2,HIGH,Done,Browse history storage and retrieval
+Data & Infrastructure,Paired TV Entity & DAO,✅ COMPLETE,2,HIGH,Done,TV device pairing storage and management
+Data & Infrastructure,Repository Layer,✅ COMPLETE,3,HIGH,Done,Business logic and data access abstraction
+Data & Infrastructure,Dependency Injection,✅ COMPLETE,1,HIGH,Done,DI container for app-wide dependencies
+Data & Infrastructure,ViewModels,✅ COMPLETE,2,HIGH,Done,UI state management for mobile app
+Data & Infrastructure,Documentation,✅ COMPLETE,2,HIGH,Done,Comprehensive project and setup documentation
+UI/Networking/Features,Mobile UI (Screens),❌ NOT STARTED,0,HIGH,32,Needs ViewModels and repositories (now available)
+UI/Networking/Features,Search Module,❌ NOT STARTED,0,HIGH,16,Needs UI framework
+UI/Networking/Features,WebSocket Client (Mobile),❌ NOT STARTED,0,CRITICAL,20,Core networking - can be done now
+UI/Networking/Features,TV App (Complete),❌ NOT STARTED,0,HIGH,140,Depends on core WebSocket
+UI/Networking/Features,Command Handler,❌ NOT STARTED,0,CRITICAL,24,Depends on WebSocket
+UI/Networking/Features,Pairing Flow,❌ NOT STARTED,0,HIGH,44,Needs UI and networking
+UI/Networking/Features,QR Code Scanning,❌ NOT STARTED,0,MEDIUM,16,Can be done independently
+UI/Networking/Features,ExoPlayer Video Handler,❌ NOT STARTED,0,HIGH,28,TV app core feature
+UI/Networking/Features,Error Handling & Reconnection,❌ NOT STARTED,0,MEDIUM,12,Can be added after WebSocket works
+UI/Networking/Features,Testing Suite,❌ NOT STARTED,0,MEDIUM,12,Can run in parallel
