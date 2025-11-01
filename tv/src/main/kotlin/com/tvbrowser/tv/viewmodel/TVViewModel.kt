@@ -1,126 +1,209 @@
 package com.tvbrowser.tv.viewmodel
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.webkit.WebView
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import com.tvbrowser.core.domain.models.TVCommand
+import com.tvbrowser.core.network.TVWebSocketServerImpl
+import com.tvbrowser.core.util.NetworkUtils
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import com.tvbrowser.core.domain.models.TVCommand
-import com.tvbrowser.core.network.SecurityManager
-import com.tvbrowser.tv.server.TVWebSocketServer
-import java.net.InetAddress
-import java.net.NetworkInterface
 
-data class TVUiState(
-    val isServerRunning: Boolean = false,
-    val currentUrl: String? = null,
-    val currentVideoUrl: String? = null,
-    val tvName: String = "Android TV",
-    val pairingPin: String = "",
-    val connectedClients: Int = 0,
-    val errorMessage: String? = null,
-    val qrCodeData: String? = null
-)
+    val currentView: StateFlow<TVView> = _currentView.asStateFlow()
 
-class TVViewModel(private val context: Context) : ViewModel() {
-    private var webSocketServer: TVWebSocketServer? = null
-    private val securityManager = SecurityManager()
+    private val _currentUrl = MutableStateFlow<String?>(null)
+    val currentUrl: StateFlow<String?> = _currentUrl.asStateFlow()
 
-    private val _uiState = MutableStateFlow(TVUiState())
-    val uiState: StateFlow<TVUiState> = _uiState
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
-    private val _navigation = MutableStateFlow<String?>(null)
-    val navigation: StateFlow<String?> = _navigation
+    private val _pin = MutableStateFlow(NetworkUtils.generatePin())
+    val pin: StateFlow<String> = _pin.asStateFlow()
+
+    private val _ipAddress = MutableStateFlow<String?>(null)
+    val ipAddress: StateFlow<String?> = _ipAddress.asStateFlow()
+
+    private val _connectionCount = MutableStateFlow(0)
+    val connectionCount: StateFlow<Int> = _connectionCount.asStateFlow()
+
+    private var exoPlayer: ExoPlayer? = null
+    private var webView: WebView? = null
 
     init {
-        generatePairingPin()
-        startWebSocketServer()
-    }
+        _ipAddress.value = NetworkUtils.getLocalIpAddress()
 
-    private fun startWebSocketServer() {
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
-                webSocketServer = TVWebSocketServer(8888)
-                webSocketServer?.onCommandReceived = { command ->
-                    handleCommand(command)
-                }
-                webSocketServer?.start()
-                _uiState.value = _uiState.value.copy(isServerRunning = true)
-                Timber.d("WebSocket server started")
-            } catch (e: Exception) {
-                Timber.e(e, "Failed to start WebSocket server")
-                _uiState.value = _uiState.value.copy(
-                    errorMessage = "Failed to start server: ${e.message}"
-                )
-            }
-        }
-    }
-
-    private fun generatePairingPin() {
-        val pin = securityManager.generatePIN()
-        _uiState.value = _uiState.value.copy(pairingPin = pin)
-
-        val ipAddress = getLocalIpAddress() ?: "192.168.1.1"
-        val qrData = """{"ip":"$ipAddress","port":8888,"pin":"$pin"}"""
-        _uiState.value = _uiState.value.copy(qrCodeData = qrData)
-    }
-
-    private fun handleCommand(command: TVCommand) {
-        when (command) {
-            is TVCommand.OpenUrl -> {
-                _uiState.value = _uiState.value.copy(currentUrl = command.url)
-                _navigation.value = "browser"
-                Timber.d("Opening URL: ${command.url}")
-            }
-            is TVCommand.PlayVideo -> {
-                _uiState.value = _uiState.value.copy(currentVideoUrl = command.url)
-                _navigation.value = "player?url=${command.url}"
-                Timber.d("Playing video: ${command.url}")
-            }
-            is TVCommand.NavigateBack -> {
-                _navigation.value = "pairing"
-                Timber.d("Navigate back")
-            }
-            is TVCommand.Pause -> {
-                Timber.d("Pause command")
-            }
-            is TVCommand.Resume -> {
-                Timber.d("Resume command")
-            }
-            else -> {
-                Timber.d("Unhandled command: $command")
-            }
-        }
-    }
-
-    private fun getLocalIpAddress(): String? {
-        try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val iface = interfaces.nextElement()
-                val addresses = iface.inetAddresses
-                while (addresses.hasMoreElements()) {
-                    val addr = addresses.nextElement()
-                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
-                        return addr.hostAddress
+        // Monitor server state
+        viewModelScope.launch {
+            webSocketServer.serverState.collect { state ->
+                when (state) {
+                    is TVWebSocketServerImpl.ServerState.Running -> {
+                        _serverState.value = ServerState.Running(state.port)
+                        Timber.d("Server running on port: ${state.port}")
+                    }
+                    is TVWebSocketServerImpl.ServerState.Error -> {
+                        _serverState.value = ServerState.Error(state.message)
+                        Timber.e("Server error: ${state.message}")
+                    }
+                    is TVWebSocketServerImpl.ServerState.Stopped -> {
+                        _serverState.value = ServerState.Stopped
+                        Timber.d("Server stopped")
                     }
                 }
             }
-        } catch (e: Exception) {
-            Timber.e(e, "Error getting local IP")
         }
-        return null
+
+        // Monitor connection count
+        viewModelScope.launch {
+            webSocketServer.connectionCount.collect { count ->
+                _connectionCount.value = count
+                if (count > 0 && _currentView.value == TVView.Pairing) {
+                    _currentView.value = TVView.Browser
+                }
+            }
+        }
+
+        // Handle incoming commands
+        viewModelScope.launch {
+            webSocketServer.commands.collect { command ->
+                handleCommand(command)
+            }
+        }
     }
 
-    fun onNavigationComplete() {
-        _navigation.value = null
+    fun startServer() {
+        viewModelScope.launch {
+            try {
+                webSocketServer.start()
+                Timber.d("WebSocket server started")
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to start server")
+                _serverState.value = ServerState.Error(e.message ?: "Unknown error")
+            }
+        }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        webSocketServer?.stop()
+    fun stopServer() {
+        webSocketServer.stopServer()
+        exoPlayer?.release()
+        exoPlayer = null
+    }
+
+    private fun handleCommand(command: TVCommand) {
+        Timber.d("Handling command: ${command::class.simpleName}")
+
+        when (command) {
+            is TVCommand.OpenUrl -> {
+                openUrl(command.url)
+            }
+            is TVCommand.PlayVideo -> {
+                playVideo(command.videoUrl)
+            }
+            is TVCommand.NavigateBack -> {
+                webView?.goBack()
+            }
+            is TVCommand.NavigateForward -> {
+                webView?.goForward()
+            }
+            is TVCommand.Pause -> {
+                exoPlayer?.pause()
+                _isPlaying.value = false
+            }
+            is TVCommand.Resume -> {
+                exoPlayer?.play()
+                _isPlaying.value = true
+            }
+            is TVCommand.Stop -> {
+                exoPlayer?.stop()
+                _isPlaying.value = false
+                _currentView.value = TVView.Browser
+            }
+            is TVCommand.SetVolume -> {
+                exoPlayer?.volume = command.volume
+            }
+            is TVCommand.Seek -> {
+                exoPlayer?.seekTo(command.positionMs)
+            }
+            is TVCommand.Register -> {
+                if (command.pin == _pin.value) {
+                    Timber.d("Device registered: ${command.deviceName}")
+                }
+            }
+            is TVCommand.Ping -> {
+                // Respond with pong
+            }
+        }
+    }
+
+    private fun openUrl(url: String) {
+        _currentUrl.value = url
+        _currentView.value = TVView.Browser
+        Timber.d("Opening URL: $url")
+    }
+
+    private fun playVideo(videoUrl: String) {
+        _currentUrl.value = videoUrl
+        _currentView.value = TVView.VideoPlayer
+        _isPlaying.value = true
+        Timber.d("Playing video: $videoUrl")
+    }
+
+    fun initializePlayer(player: ExoPlayer) {
+        exoPlayer = player
+
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                _isPlaying.value = isPlaying
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                when (playbackState) {
+                    Player.STATE_ENDED -> {
+                        _isPlaying.value = false
+                    }
+                    Player.STATE_READY -> {
+                        Timber.d("Player ready")
+                    }
+                    Player.STATE_BUFFERING -> {
+                        Timber.d("Player buffering")
+                    }
+                }
+            }
+        })
+    }
+
+    fun initializeWebView(webView: WebView) {
+        this.webView = webView
+    }
+
+    fun playMedia(url: String) {
+        exoPlayer?.let { player ->
+            val mediaItem = MediaItem.fromUri(url)
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.play()
+        }
+    }
+
+    fun getQRCodeContent(): String {
+        val ip = _ipAddress.value ?: "unknown"
+        val pin = _pin.value
+        return "browsesnap://pair?ip=$ip&pin=$pin&name=Android TV"
+    }
+
+    sealed class ServerState {
+        object Stopped : ServerState()
+        data class Running(val port: Int) : ServerState()
+        data class Error(val message: String) : ServerState()
+    }
+
+    sealed class TVView {
+        object Pairing : TVView()
+        object Browser : TVView()
+        object VideoPlayer : TVView()
     }
 }

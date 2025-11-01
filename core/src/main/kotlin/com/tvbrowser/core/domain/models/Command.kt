@@ -1,92 +1,93 @@
 package com.tvbrowser.core.domain.models
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 @Serializable
 sealed class TVCommand {
-    @Serializable
-    data class OpenUrl(val url: String) : TVCommand()
+    abstract val timestamp: Long
 
     @Serializable
-    data class PlayVideo(
+    data class OpenUrl(
         val url: String,
-        val title: String? = null,
-        val startPosition: Long = 0
+        override val timestamp: Long = System.currentTimeMillis()
     ) : TVCommand()
 
     @Serializable
-    object NavigateBack : TVCommand()
+    data class PlayVideo(
+        val videoUrl: String,
+        val title: String? = null,
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    object NavigateForward : TVCommand()
+    data class NavigateBack(
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    object Pause : TVCommand()
+    data class NavigateForward(
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    object Resume : TVCommand()
+    data class Pause(
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    data class Seek(val positionMs: Long) : TVCommand()
+    data class Resume(
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    data class SetVolume(val level: Int) : TVCommand()
+    data class Stop(
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    data class Register(val deviceId: String, val deviceName: String = "Mobile") : TVCommand()
+    data class SetVolume(
+        val volume: Float,
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    object Stop : TVCommand()
+    data class Seek(
+        val positionMs: Long,
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    data class SetSubtitles(val url: String?) : TVCommand()
+    data class Register(
+        val deviceId: String,
+        val deviceName: String,
+        val pin: String,
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
     @Serializable
-    data class Search(val query: String) : TVCommand()
-}
+    data class Ping(
+        override val timestamp: Long = System.currentTimeMillis()
+    ) : TVCommand()
 
-@Serializable
-sealed class TVResponse {
-    @Serializable
-    data class Status(
-        val state: String,
-        val currentUrl: String? = null,
-        val playbackPosition: Long? = null,
-        val duration: Long? = null
-    ) : TVResponse()
+    companion object {
+        private val json = Json {
+            ignoreUnknownKeys = true
+            prettyPrint = false
+            encodeDefaults = true
+        }
 
-    @Serializable
-    data class Error(val message: String, val code: Int = 500) : TVResponse()
+        fun fromJson(jsonString: String): TVCommand? {
+            return try {
+                json.decodeFromString<TVCommand>(jsonString)
+            } catch (e: Exception) {
+                timber.log.Timber.e(e, "Failed to parse command: $jsonString")
+                null
+            }
+        }
 
-    @Serializable
-    object Success : TVResponse()
-
-    @Serializable
-    data class PairingInfo(
-        val token: String,
-        val tvName: String,
-        val ip: String,
-        val port: Int
-    ) : TVResponse()
-}
-
-@Serializable
-data class TVPairingData(
-    val ip: String,
-    val port: Int,
-    val token: String,
-    val tvName: String = "Android TV"
-)
-
-@Serializable
-data class SearchResult(
-    val title: String,
-    val url: String,
-    val type: ContentType = ContentType.WEBPAGE,
-    val thumbnail: String? = null
-)
-
-@Serializable
-enum class ContentType {
-    WEBPAGE, VIDEO, AUDIO, IMAGE
+        fun toJson(command: TVCommand): String {
+            return json.encodeToString(serializer(), command)
+        }
+    }
 }
