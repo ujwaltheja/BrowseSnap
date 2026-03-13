@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jewelry-cad"
+version = "0.1.0"
+description = "Jewelry CAD product inspired by 3DESIGN — parametric NURBS/solid modeling with AI services"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "fastapi>=0.110.0,<1",
+    "uvicorn[standard]>=0.29.0,<1",
+    "pydantic>=2.6.0,<3",
+    "numpy>=1.26.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0,<9",
+    "httpx>=0.27.0,<1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
